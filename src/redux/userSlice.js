@@ -1,16 +1,18 @@
 import { createSlice } from '@reduxjs/toolkit';
 import jwtDecode from 'jwt-decode';
 
+const initialUser = localStorage.getItem('user');
+const parsedUser = initialUser ? JSON.parse(initialUser) : null;
+
 const initialState = {
     status: 'idle',
     loading: false,
-    currentUser: JSON.parse(localStorage.getItem('user')) || null,
-    currentRole: (JSON.parse(localStorage.getItem('user')) || {}).role || null,
-    currentToken: (JSON.parse(localStorage.getItem('user')) || {}).token || null,
+    currentUser: parsedUser,
+    currentRole: parsedUser ? parsedUser.role : null,
+    currentToken: parsedUser ? parsedUser.token : null,
     isLoggedIn: false,
     error: null,
     response: null,
-
     responseReview: null,
     responseProducts: null,
     responseSellerProducts: null,
@@ -18,7 +20,6 @@ const initialState = {
     responseDetails: null,
     responseSearch: null,
     responseCustomersList: null,
-
     productData: [],
     sellerProductData: [],
     specificProductData: [],
@@ -29,15 +30,17 @@ const initialState = {
 };
 
 const updateCartDetailsInLocalStorage = (cartDetails) => {
-    const currentUser = JSON.parse(localStorage.getItem('user')) || {};
-    currentUser.cartDetails = cartDetails;
-    localStorage.setItem('user', JSON.stringify(currentUser));
+    const currentUser = localStorage.getItem('user');
+    const parsedUser = currentUser ? JSON.parse(currentUser) : {};
+    parsedUser.cartDetails = cartDetails;
+    localStorage.setItem('user', JSON.stringify(parsedUser));
 };
 
 export const updateShippingDataInLocalStorage = (shippingData) => {
-    const currentUser = JSON.parse(localStorage.getItem('user')) || {};
+    const currentUser = localStorage.getItem('user');
+    const parsedUser = currentUser ? JSON.parse(currentUser) : {};
     const updatedUser = {
-        ...currentUser,
+        ...parsedUser,
         shippingData: shippingData
     };
     localStorage.setItem('user', JSON.stringify(updatedUser));
@@ -91,7 +94,7 @@ const userSlice = createSlice({
             if (existingProduct) {
                 existingProduct.quantity += 1;
             } else {
-                const newCartItem = { ...action.payload };
+                const newCartItem = { ...action.payload, quantity: 1 };
                 state.currentUser.cartDetails.push(newCartItem);
             }
 
@@ -117,18 +120,14 @@ const userSlice = createSlice({
 
             updateCartDetailsInLocalStorage(state.currentUser.cartDetails);
         },
-
         removeSpecificProduct: (state, action) => {
             const productIdToRemove = action.payload;
             state.currentUser.cartDetails = state.currentUser.cartDetails.filter(
-              (cartItem) => cartItem._id !== productIdToRemove
-
+                (cartItem) => cartItem._id !== productIdToRemove
             );
 
-            
-          },
-        
-
+            updateCartDetailsInLocalStorage(state.currentUser.cartDetails);
+        },
         fetchProductDetailsFromCart: (state, action) => {
             const productIdToFetch = action.payload;
             const productInCart = state.currentUser.cartDetails.find(
@@ -141,12 +140,10 @@ const userSlice = createSlice({
                 state.productDetailsCart = null;
             }
         },
-
         removeAllFromCart: (state) => {
             state.currentUser.cartDetails = [];
             updateCartDetailsInLocalStorage([]);
         },
-
         authFailed: (state, action) => {
             state.status = 'failed';
             state.response = action.payload;
@@ -168,10 +165,23 @@ const userSlice = createSlice({
             state.response = true;
             state.isLoggedIn = false;
         },
-
         isTokenValid: (state) => {
-            const decodedToken = jwtDecode(state.currentToken);
-            if (state.currentToken) {              state.isLoggedIn = true;
+            if (state.currentToken) {
+                const decodedToken = jwtDecode(state.currentToken);
+                const currentTime = Date.now() / 1000;
+
+                if (decodedToken.exp > currentTime) {
+                    state.isLoggedIn = true;
+                } else {
+                    localStorage.removeItem('user');
+                    state.currentUser = null;
+                    state.currentRole = null;
+                    state.currentToken = null;
+                    state.status = 'idle';
+                    state.response = null;
+                    state.error = null;
+                    state.isLoggedIn = false;
+                }
             } else {
                 localStorage.removeItem('user');
                 state.currentUser = null;
@@ -183,7 +193,6 @@ const userSlice = createSlice({
                 state.isLoggedIn = false;
             }
         },
-
         getRequest: (state) => {
             state.loading = true;
         },
@@ -196,14 +205,12 @@ const userSlice = createSlice({
             state.loading = false;
             state.error = action.payload;
         },
-
         getDeleteSuccess: (state) => {
             state.status = 'deleted';
             state.loading = false;
             state.error = null;
             state.response = null;
         },
-
         productSuccess: (state, action) => {
             state.productData = action.payload;
             state.responseProducts = null;
@@ -215,7 +222,6 @@ const userSlice = createSlice({
             state.loading = false;
             state.error = null;
         },
-
         sellerProductSuccess: (state, action) => {
             state.sellerProductData = action.payload;
             state.responseSellerProducts = null;
@@ -227,7 +233,6 @@ const userSlice = createSlice({
             state.loading = false;
             state.error = null;
         },
-
         specificProductSuccess: (state, action) => {
             state.specificProductData = action.payload;
             state.responseSpecificProducts = null;
@@ -239,7 +244,6 @@ const userSlice = createSlice({
             state.loading = false;
             state.error = null;
         },
-
         productDetailsSuccess: (state, action) => {
             state.productDetails = action.payload;
             state.responseDetails = null;
@@ -251,20 +255,17 @@ const userSlice = createSlice({
             state.loading = false;
             state.error = null;
         },
-
         customersListSuccess: (state, action) => {
             state.customersList = action.payload;
             state.responseCustomersList = null;
             state.loading = false;
             state.error = null;
         },
-
         getCustomersListFailed: (state, action) => {
             state.responseCustomersList = action.payload;
             state.loading = false;
             state.error = null;
         },
-
         setFilteredProducts: (state, action) => {
             state.filteredProducts = action.payload;
             state.responseSearch = null;
@@ -290,7 +291,6 @@ export const {
     authError,
     authLogout,
     isTokenValid,
-    doneSuccess,
     getDeleteSuccess,
     getRequest,
     productSuccess,
@@ -302,6 +302,7 @@ export const {
     getFailed,
     getError,
     getSearchFailed,
+    getCustomersListFailed,
     customersListSuccess,
     getSpecificProductsFailed,
     specificProductSuccess,
@@ -311,7 +312,7 @@ export const {
     removeAllFromCart,
     fetchProductDetailsFromCart,
     updateCurrentUser,
-    
+    setFilteredProducts,
 } = userSlice.actions;
 
-export const userReducer = userSlice.reducer;
+export default userSlice.reducer;
